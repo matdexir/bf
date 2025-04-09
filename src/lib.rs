@@ -2,10 +2,10 @@ use std::{collections::VecDeque, io::Read};
 
 #[derive(Debug)]
 pub struct BrainFuckVM {
-    pc: usize,            // Program counter
-    cell_pc: usize,       // Keeping Track of the current cell
-    instructions: String, // Program instructions
-    registers: [u8; 10],  // Program Registers
+    pc: usize,                 // Program counter
+    cell_pc: usize,            // Keeping Track of the current cell
+    instructions: Vec<OpCode>, // Program instructions
+    registers: [u8; 10],       // Program Registers
     // loop_start_stack: Vec<usize>,
     // loop_end_queue: VecDeque<usize>,
     #[cfg(debug_assertions)]
@@ -14,8 +14,8 @@ pub struct BrainFuckVM {
 
 #[derive(Debug)]
 enum OpCode {
-    IncrementPointer,
-    DecrementPointer,
+    IncrementCell,
+    DecrementCell,
     Increment,
     Decrement,
     ReadCell,
@@ -26,16 +26,37 @@ enum OpCode {
 
 impl BrainFuckVM {
     pub fn new(content: String) -> Self {
+        let instructions = BrainFuckVM::lex(content);
+
         BrainFuckVM {
             pc: 0,
             cell_pc: 0,
-            instructions: content,
+            instructions,
             registers: [0; 10],
             // loop_start_stack: Vec::new(),
             // loop_end_queue: VecDeque::new(),
             #[cfg(debug_assertions)]
             buffered_output: String::from(""),
         }
+    }
+
+    fn lex(instructions: String) -> Vec<OpCode> {
+        let mut op_codes = Vec::new();
+        for c in instructions.chars() {
+            match c {
+                '+' => op_codes.push(OpCode::IncrementCell),
+                '-' => op_codes.push(OpCode::DecrementCell),
+                '>' => op_codes.push(OpCode::Increment),
+                '<' => op_codes.push(OpCode::Decrement),
+                '.' => op_codes.push(OpCode::WriteCell),
+                ',' => op_codes.push(OpCode::ReadCell),
+                '[' => op_codes.push(OpCode::LoopStart),
+                ']' => op_codes.push(OpCode::LoopEnd),
+
+                _ => continue,
+            };
+        }
+        return op_codes;
     }
 
     fn incr_pc(&mut self) {
@@ -48,28 +69,28 @@ impl BrainFuckVM {
 
     pub fn exec(&mut self) {
         loop {
-            if let Some(c) = self.instructions.chars().nth(self.pc) {
+            if let Some(c) = &self.instructions.get(self.pc) {
                 #[cfg(debug_assertions)]
                 println!("c: {:?}", c);
 
                 match c {
-                    '+' => {
+                    OpCode::IncrementCell => {
                         self.registers[self.cell_pc] += 1;
                         self.incr_pc();
                     }
-                    '-' => {
+                    OpCode::DecrementCell => {
                         self.registers[self.cell_pc] -= 1;
                         self.incr_pc();
                     }
-                    '>' => {
+                    OpCode::Increment => {
                         self.cell_pc += 1;
                         self.incr_pc();
                     }
-                    '<' => {
+                    OpCode::Decrement => {
                         self.cell_pc -= 1;
                         self.incr_pc();
                     }
-                    '.' => {
+                    OpCode::WriteCell => {
                         #[cfg(debug_assertions)]
                         {
                             self.buffered_output += &self.registers[self.cell_pc].to_string()
@@ -78,49 +99,31 @@ impl BrainFuckVM {
                         print!("{:?}", self.registers[self.cell_pc]);
                         self.incr_pc();
                     }
-                    ',' => {
+                    OpCode::ReadCell => {
                         let mut input_buf = [0];
                         let _ = std::io::stdin().read_exact(&mut input_buf);
                         self.registers[self.cell_pc] = input_buf[0];
                         self.incr_pc();
                     }
-                    '[' => {
-                        /*
-                        self.loop_start_stack.push(self.pc);
+                    OpCode::LoopStart => {
                         if self.registers[self.cell_pc] == 0 {
-                            if let Some(pc) = self.loop_end_queue.pop_front() {
-                                self.pc = pc + 1
-                            } else {
-                                while self.instructions.chars().nth(self.pc).unwrap() != ']' {
-                                    self.incr_pc();
+                            loop {
+                                let op_code = &self.instructions[self.pc];
+                                match op_code {
+                                    OpCode::LoopEnd => break,
+                                    _ => self.incr_pc(),
                                 }
-                                self.incr_pc();
-                            }
-                        } else {
-                            self.incr_pc();
-                        }
-                        */
-                        if self.registers[self.cell_pc] == 0 {
-                            while self.instructions.chars().nth(self.pc).unwrap() != ']' {
-                                self.incr_pc();
                             }
                         }
                         self.incr_pc();
                     }
-                    ']' => {
-                        /*
-                        self.loop_end_queue.push_back(self.pc);
-                        if let Some(pc) = self.loop_start_stack.pop() {
-                            self.pc = pc + 1
-                        } else {
-                            panic!("No matching [ for the current ]")
+                    OpCode::LoopEnd => loop {
+                        let op_code = &self.instructions[self.pc];
+                        match op_code {
+                            OpCode::LoopStart => break,
+                            _ => self.decr_pc(),
                         }
-                        */
-
-                        while self.instructions.chars().nth(self.pc).unwrap() != '[' {
-                            self.decr_pc();
-                        }
-                    }
+                    },
                     _ => continue,
                 }
 
