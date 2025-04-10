@@ -3,7 +3,7 @@ use std::{
     io::{self, Read, Write},
 };
 
-const MEMORY_SIZE: usize = 10;
+const MEMORY_SIZE: usize = 1000;
 
 #[derive(Debug)]
 pub struct BrainFuckVM {
